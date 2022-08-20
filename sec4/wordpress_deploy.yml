@@ -1,0 +1,47 @@
+---
+## ここに入れたらエラー。
+#- vars:
+#  ansible_selinux:
+#    config_mode: 'enforcing'
+
+- name: Deploy Database for WordPress
+  hosts: databases
+  become: true #false  #ターゲット側のコンテナにsudoをインストールすることでtrueで実施可能。
+#  #Selinuxとやらの設定判定用。sec4/common/vars/main.ymlに集約。
+#  vars:
+#    ansible_selinux:
+#      config_mode: 'enforcing'
+
+#  environment:
+#    http_proxy: "http://proxy.example.local:8080"
+#    https_proxy: "http://proxy.example.local:8080"
+  roles:
+    - { role: common, tags: common }
+    - { role: mariadb, tags: mariadb }
+    - { role: haproxy, cluster_service: db_cluster, tags: haproxy }
+    - { role: keepalived, cluster_service: db_cluster, tags: keepalived }
+
+- name: Deploy Application for WordPress
+  hosts: apps
+  become: true #false
+#  #Selinuxとやらの設定判定用。sec4/common/vars/main.ymlに集約。
+#  vars:
+#    ansible_selinux:
+#      config_mode: 'enforcing'
+  roles:
+    - { role: common, tags: common }
+    - { role: nginx, tags: nginx }
+    - { role: php-fpm, tags: php-fpm }
+    - { role: wordpress, tags: wordpress }
+
+- name: Deploy LoadBalancer for WordPress
+  hosts: lbs
+  become: true #false
+#  #Selinuxとやらの設定判定用。sec4/common/vars/main.ymlに集約。
+#  vars:
+#    ansible_selinux:
+#      config_mode: 'enforcing'
+  roles:
+    - { role: common, tags: common }
+    - { role: haproxy, cluster_service: app_cluster, tags: haproxy }
+    - { role: keepalived, cluster_service: app_cluster, tags: keepalived }

@@ -1,0 +1,6 @@
+---
+# vars file for ./roles/common
+
+## 2022/08/20  #selinuxとやらの設定判定のために変数をわざわざ追加する必要があった。複数個所に配置したくなかったので、Playbookから集約した。（sec4/wordpres_deploy.yml)
+ansible_selinux:
+  config_mode: 'enforcing'

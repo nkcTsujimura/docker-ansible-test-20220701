@@ -1,0 +1,14 @@
+#templateファイルを作る必要があるので後回し。
+---
+- hosts: test_service
+  tasks:
+  - name: Install HTTP
+    yum: name=httpd state=installed
+  - name: Config HTTP
+    template: src=httpd.conf.j2 dest=/etc/apache/httpd.conf
+    notify:
+      - Restart HTTP
+
+  handlers:
+  - name: Restart HTTP
+    service: name=httpd state=restarted

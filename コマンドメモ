@@ -1,0 +1,83 @@
+>P66 2-9
+ansible -i inventry.ini target -m ping
+
+ansible -i inventry.ini target -m file -a 'path=/test.txt state=touch mode=0644'
+
+target側のノードにansibleユーザを作成。
+
+>p68 2-11
+ansible-playbook -i sec2/inventory/test02_inventory.ini sec2/test_playbook.yml
+
+sudo とか
+https://www.ninton.co.jp/archives/2343
+
+
+
+
+
+#変数は無理やり作成した。以下のSElinuxインストールで解決？
+
+#sec4配下で以下実行。
+ansible-playbook -i ./inventory/inventory.ini ./wordpress_deploy.yml -t common
+
+
+
+
+#こいつらをcentosに入れる必要がある（コンテナで省略されている）
+#centos-7.4ではデフォルトで入っている。centos-8はサポートが終わっており、インストールコマンドが死んでいる。
+#amazonlinuxでやる？
+#https://qiita.com/chi9rin/items/af532d0dd9237cc65741
+#https://kokichiblog.com/it/1003/
+yum install -y libselinux-python
+yum -y install selinux-policy-targeted setools
+getenforce
+
+
+(sec4, wordpress_deploy.yml)
+以下の3点をごり押して実行クリア
+
+O・become : true
+    解決策１：falseにする
+    O解決策2：これはcentosのコンテナ側にsudoをインストールすることで解決。（sysctlは改善せず）
+
+・SElinuxの判定用変数が存在しないのでplaybookに無理やり追加。（コンテナ側にも追加。
+X・ipv6のsysctl周りのエラー。
+
+
+## 判定用の変数が無いと言われる。
+# playbook中に無理やり埋め込んで回避。
+# iniファイルには入れ子型のデータは登録できない。
+# 外部ファイルから読み込める。https://rheb.hatenablog.com/entry/ansible_variables
+#　正直今のところ邪魔でしかない。
+TASK [common : configure / Selinux permissived] ************************************************
+fatal: [db1i]: FAILED! => {"msg": "The conditional check 'ansible_selinux.config_mode == 'enforcing'' failed. The error was: error while evaluating conditional (ansible_selinux.config_mode == 'enforcing'): 'dict object' has no attribute 'config_mode'\n\nThe error appears to be in '/var/data/sec4/roles/common/tasks/main.yml': line 3, column 3, but may\nbe elsewhere in the file depending on the exact syntax problem.\n\nThe offending line appears to be:\n\n# tasks file for ./roles/common\n- name: configure / Selinux permissived\n  ^ here\n"}
+fatal: [db2i]: FAILED! => {"msg": "The conditional check 'ansible_selinux.config_mode == 'enforcing'' failed. The error was: error while evaluating conditional (ansible_selinux.config_mode == 'enforcing'): 'dict object' has no attribute 'config_mode'\n\nThe error appears to be in '/var/data/sec4/roles/common/tasks/main.yml': line 3, column 3, but may\nbe elsewhere in the file depending on the exact syntax problem.\n\nThe offending line appears to be:\n\n# tasks file for ./roles/common\n- name: configure / Selinux permissived\n  ^ here\n"}
+fatal: [db3i]: FAILED! => {"msg": "The conditional check 'ansible_selinux.config_mode == 'enforcing'' failed. The error was: error while evaluating conditional (ansible_selinux.config_mode == 'enforcing'): 'dict object' has no attribute 'config_mode'\n\nThe error appears to be in '/var/data/sec4/roles/common/tasks/main.yml': line 3, column 3, but may\nbe elsewhere in the file depending on the exact syntax problem.\n\nThe offending line appears to be:\n\n# tasks file for ./roles/common\n- name: configure / Selinux permissived\n  ^ here\n"}
+
+
+
+
+
+ip6vについてエラー。、2回回せば通る謎。
+## sysctl_set: yesここを変更しても変更なし。（デフォルトno, text yes)
+## reload: yes ここをnoにするとエラーは出なくなる。設定のみ書き込み、リロードができていない。
+## systemd関連がドッカ―では使えないので、無視して進める。https://qiita.com/smiler5617/items/2a33d1aba0174480e9d3
+TASK [common : configure / Disable ipv6 interface] *****************************************************************************************************************************************
+failed: [lb1i] (item=net.ipv6.conf.all.disable_ipv6) => {"ansible_loop_var": "item", "changed": false, "item": "net.ipv6.conf.all.disable_ipv6", "msg": "Failed to reload sysctl: sysctl: setting key \"net.ipv6.conf.all.disable_ipv6\": Read-only file system\n"}
+failed: [lb2i] (item=net.ipv6.conf.all.disable_ipv6) => {"ansible_loop_var": "item", "changed": false, "item": "net.ipv6.conf.all.disable_ipv6", "msg": "Failed to reload sysctl: sysctl: setting key \"net.ipv6.conf.all.disable_ipv6\": Read-only file system\n"}
+failed: [lb1i] (item=net.ipv6.conf.default.disable_ipv6) => {"ansible_loop_var": "item", "changed": false, "item": "net.ipv6.conf.default.disable_ipv6", "msg": "Failed to reload sysctl: sysctl: setting key \"net.ipv6.conf.all.disable_ipv6\": Read-only file system\nsysctl: setting key \"net.ipv6.conf.default.disable_ipv6\": Read-only file system\n"}
+failed: [lb2i] (item=net.ipv6.conf.default.disable_ipv6) => {"ansible_loop_var": "item", "changed": false, "item": "net.ipv6.conf.default.disable_ipv6", "msg": "Failed to reload sysctl: sysctl: setting key \"net.ipv6.conf.all.disable_ipv6\": Read-only file system\nsysctl: setting key \"net.ipv6.conf.default.disable_ipv6\": Read-only file system\n"}
+
+TASK [common : configure / Disable ipv6 interface] *****************************************************************************************************************************************
+ok: [lb1i] => (item=net.ipv6.conf.all.disable_ipv6)
+ok: [lb2i] => (item=net.ipv6.conf.all.disable_ipv6)
+ok: [lb1i] => (item=net.ipv6.conf.default.disable_ipv6)
+ok: [lb2i] => (item=net.ipv6.conf.default.disable_ipv6)
+
+新たなエラー。＝＞再現性が取れない
+https://blog.katsubemakito.net/ansible/yum-use_backend
+https://teratail.com/questions/141968
+TASK [common : configure / Update yum packages] ********************************************************************************************************************************************
+fatal: [db2i]: FAILED! => {"changed": false, "msg": "The Python 2 bindings for rpm are needed for this module. If you require Python 3 support use the `dnf` Ansible module instead.. The Python 2 yum module is needed for this module. If you require Python 3 support use the `dnf` Ansible module instead."}
+fatal: [db1i]: FAILED! => {"changed": false, "msg": "The Python 2 bindings for rpm are needed for this module. If you require Python 3 support use the `dnf` Ansible module instead.. The Python 2 yum module is needed for this module. If you require Python 3 support use the `dnf` Ansible module instead."}
+fatal: [db3i]: FAILED! => {"changed": false, "msg": "The Python 2 bindings for rpm are needed for this module. If you require Python 3 support use the `dnf` Ansible module instead.. The Python 2 yum module is needed for this module. If you require Python 3 support use the `dnf` Ansible module instead."}
