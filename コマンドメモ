@@ -81,3 +81,124 @@ TASK [common : configure / Update yum packages] ********************************
 fatal: [db2i]: FAILED! => {"changed": false, "msg": "The Python 2 bindings for rpm are needed for this module. If you require Python 3 support use the `dnf` Ansible module instead.. The Python 2 yum module is needed for this module. If you require Python 3 support use the `dnf` Ansible module instead."}
 fatal: [db1i]: FAILED! => {"changed": false, "msg": "The Python 2 bindings for rpm are needed for this module. If you require Python 3 support use the `dnf` Ansible module instead.. The Python 2 yum module is needed for this module. If you require Python 3 support use the `dnf` Ansible module instead."}
 fatal: [db3i]: FAILED! => {"changed": false, "msg": "The Python 2 bindings for rpm are needed for this module. If you require Python 3 support use the `dnf` Ansible module instead.. The Python 2 yum module is needed for this module. If you require Python 3 support use the `dnf` Ansible module instead."}
+
+
+[mariadb編]
+
+#sec4配下で以下実行。
+ansible-playbook -i ./inventory/inventory.ini ./wordpress_deploy.yml -t mariadb
+
+
+コンテナにインストールする。
+sudo yum install firewalld
+#https://qiita.com/i35_267/items/10789865dd240e075eba
+コンテナを改造。systemctlを実行可能に。
+
+元：sshのサービスとして実行）## sshdを起動
+    #CMD ["/usr/sbin/sshd", "-D"]
+改修後）
+    # /sbin/initから起動する
+    #https://www.suzu6.net/posts/324-docker-compose-centos-privileged/
+    CMD ["/usr/sbin/init"]
+
+改修後、privilligedを指定しないコンテナにはssh接続ができないので注意。
+privileged + sbin/initであればOK
+
+ついでにDockerfile内でfirewalldをインストールさせた。
+
+この状態で、common編のselinuxにおけるreloard:no をreload:yseに書き換えて実験。これで通るようになった。
+
+しかし以下のエラーが発生。
+TASK [common : configure / Update yum packages] ********************************************************************************************************************************************
+fatal: [db1i]: FAILED! => {"changed": false, "msg": "\n\n One of the configured repositories failed (Unknown),\n and yum doesn't have enough cached data to continue. At this point the only\n safe thing yum can do is fail. There are a few ways to work \"fix\" this:\n\n     1. Contact the upstream for the repository and get them to fix the problem.\n\n     2. Reconfigure the baseurl/etc. for the repository, to point to a working\n        upstream. This is most often useful if you are using a newer\n        distribution release than is supported by the repository (and the\n        packages for the previous distribution release still work).\n\n     3. Run the command with the repository temporarily disabled\n            yum --disablerepo=<repoid> ...\n\n     4. Disable the repository permanently, so yum won't use it by default. Yum\n        will then just ignore the repository until you permanently enable it\n        again or use --enablerepo for temporary usage:\n\n            yum-config-manager --disable <repoid>\n        or\n            subscription-manager repos --disable=<repoid>\n\n     5. Configure the failing repository to be skipped, if it is unavailable.\n        Note that yum will try to contact the repo. when it runs most commands,\n        so will have to try and fail each time (and thus. yum will be be much\n        slower). If it is a very temporary problem though, this is often a nice\n        compromise:\n\n            yum-config-manager --save --setopt=<repoid>.skip_if_unavailable=true\n\nCannot find a valid baseurl for repo: base/7/x86_64\n", "rc": 1, "results": []}
+fatal: [db3i]: FAILED! => {"changed": false, "msg": "\n\n One of the configured repositories failed (Unknown),\n and yum doesn't have enough cached data to continue. At this point the only\n safe thing yum can do is fail. There are a few ways to work \"fix\" this:\n\n     1. Contact the upstream for the repository and get them to fix the problem.\n\n     2. Reconfigure the baseurl/etc. for the repository, to point to a working\n        upstream. This is most often useful if you are using a newer\n        distribution release than is supported by the repository (and the\n        packages for the previous distribution release still work).\n\n     3. Run the command with the repository temporarily disabled\n            yum --disablerepo=<repoid> ...\n\n     4. Disable the repository permanently, so yum won't use it by default. Yum\n        will then just ignore the repository until you permanently enable it\n        again or use --enablerepo for temporary usage:\n\n            yum-config-manager --disable <repoid>\n        or\n            subscription-manager repos --disable=<repoid>\n\n     5. Configure the failing repository to be skipped, if it is unavailable.\n        Note that yum will try to contact the repo. when it runs most commands,\n        so will have to try and fail each time (and thus. yum will be be much\n        slower). If it is a very temporary problem though, this is often a nice\n        compromise:\n\n            yum-config-manager --save --setopt=<repoid>.skip_if_unavailable=true\n\nCannot find a valid baseurl for repo: base/7/x86_64\n", "rc": 1, "results": []}
+fatal: [db2i]: FAILED! => {"changed": false, "msg": "\n\n One of the configured repositories failed (Unknown),\n and yum doesn't have enough cached data to continue. At this point the only\n safe thing yum can do is fail. There are a few ways to work \"fix\" this:\n\n     1. Contact the upstream for the repository and get them to fix the problem.\n\n     2. Reconfigure the baseurl/etc. for the repository, to point to a working\n        upstream. This is most often useful if you are using a newer\n        distribution release than is supported by the repository (and the\n        packages for the previous distribution release still work).\n\n     3. Run the command with the repository temporarily disabled\n            yum --disablerepo=<repoid> ...\n\n     4. Disable the repository permanently, so yum won't use it by default. Yum\n        will then just ignore the repository until you permanently enable it\n        again or use --enablerepo for temporary usage:\n\n            yum-config-manager --disable <repoid>\n        or\n            subscription-manager repos --disable=<repoid>\n\n     5. Configure the failing repository to be skipped, if it is unavailable.\n        Note that yum will try to contact the repo. when it runs most commands,\n        so will have to try and fail each time (and thus. yum will be be much\n        slower). If it is a very temporary problem though, this is often a nice\n        compromise:\n\n            yum-config-manager --save --setopt=<repoid>.skip_if_unavailable=true\n\nCannot find a valid baseurl for repo: base/7/x86_64\n", "rc": 1, "results": []}
+
+firewalldをDockerfileから削除すると動いた。(role=common)
+ansible-playbook -i ./inventory/inventory.ini ./wordpress_deploy.yml -t common
+
+ここで新エラー
+> [internal] load metadata for docker.io/library/centos:centos7.4.1708:
+------
+failed to solve with frontend dockerfile.v0: failed to create LLB definition: failed to authorize: rpc error: code = Unknown desc = failed to fetch oauth token: Get "https://auth.docker.io/token?scope=repository%3Alibrary%2Fcentos%3Apull&service=registry.docker.io": dial tcp: lookup auth.docker.io on 172.24.48.1:53: dial udp 172.24.48.1:53: connect: network is unreachable
+ERROR: Service 'db1i' failed to build : Build failed
+
+
+イメージを更新することでなんとかなった？
+https://cream-worker.blog.jp/archives/1079086929.html
+nkc10600@RNTLV020:~/docker/ansible_book_20220806$ docker pull centos:centos7.4.1708
+centos7.4.1708: Pulling from library/centos
+840caab23da4: Already exists
+Digest: sha256:8906d699cbd9406b07a105bedebc14a5945c200971b0a3a067aa245badc545b2
+Status: Downloaded newer image for centos:centos7.4.1708
+docker.io/library/centos:centos7.4.1708
+
+
+firewalldはDockerfileに組み込むと失敗。
+
+docker起動後に別途インストールして有効化。
+sshで接続し、
+sudo yum install firewalld
+sudo systemctl start firewalld
+
+mariadbについて
+
+TASK [mariadb : install / Install required packages] ***************************************************************************************************************************************
+fatal: [db1i]: FAILED! => {"changed": false, "msg": "Failure talking to yum: failure: repodata/repomd.xml from mariadb: [Errno 256] No more mirrors to try.\nhttp://yum.mariadb.org/10.3.9/centos7-amd64/repodata/repomd.xml: [Errno 14] curl#6 - \"Could not resolve host: yum.mariadb.org; Unknown error\""}
+えら―が出たのでバージョン指定を変更。
+（リポジトリを確認）
+https://mirror.mariadb.org/yum/
+targetノード側のキャッシュを削除
+https://programmerall.com/article/83371709386/
+
+次エラー
+TASK [mariadb : install / Install required packages] ***************************************************************************************************************************************
+fatal: [db1i]: FAILED! => {"changed": false, "msg": "Failure talking to yum: Cannot find a valid baseurl for repo: base/7/x86_64"}
+
+
+先にFirewalldを有効化すると上記エラーが出る。
+main.ymlのcheck_install.ymlをコメントアウトし…
+TASK [mariadb : configure / Setup configure file] ******************************************************************************************************************************************
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ansible.errors.AnsibleUndefinedVariable: 'ansible.vars.hostvars.HostVarsVars object' has no attribute 'ansible_default_ipv4'
+fatal: [db3i]: FAILED! => {"changed": false, "msg": "AnsibleUndefinedVariable: 'ansible.vars.hostvars.HostVarsVars object' has no attribute 'ansible_default_ipv4'"}
+
+
+
+
+
+
+
+
+
+
+
+[sec5-1 Linux構成管理]
+大部分はコンテナで動いた。
+sshキーおよび以下のリゾルバー設定を無視すればDockerコンテナでも動いた。
+
+TASK [common/resolver : main / Deploy resolv.conf] *****************************************************************************************************************************************
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: OSError: [Errno 16] Device or resource busy
+fatal: [cent01]: FAILED! => {"changed": false, "checksum": "ba6f7ef9485cc82a6b39713f3ed7a57ee597d76a", "msg": "Unable to make /root/.ansible/tmp/ansible-tmp-1661081825.1179678-1674-174824163327715/source into to /etc/resolv.conf, failed final rename from /etc/.ansible_tmpz0_TaXresolv.conf: [Errno 16] Device or resource busy"}
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: OSError: [Errno 16] Device or resource busy
+fatal: [cent03]: FAILED! => {"changed": false, "checksum": "ba6f7ef9485cc82a6b39713f3ed7a57ee597d76a", "msg": "Unable to make /root/.ansible/tmp/ansible-tmp-1661081825.2022493-1676-198132486092255/source into to /etc/resolv.conf, failed final rename from /etc/.ansible_tmpRtecbLresolv.conf: [Errno 16] Device or resource busy"}
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: OSError: [Errno 16] Device or resource busy
+fatal: [cent02]: FAILED! => {"changed": false, "checksum": "ba6f7ef9485cc82a6b39713f3ed7a57ee597d76a", "msg": "Unable to make /root/.ansible/tmp/ansible-tmp-1661081825.1585195-1675-48281774699875/source into to /etc/resolv.conf, failed final rename from /etc/.ansible_tmp9TJhfwresolv.conf: [Errno 16] Device or resource busy"}
+
+
+
+
+他方針検討
+[VMware station player, VMware SEXiの2つは…エラーで起動せず。使えない…]
+
+
+＜方針＞
+・こんなことできるんだ…で留める。
+・コンテナで動いた地点で満足する。
+・Linux勉強して戻る、基本は分かった。
+・Dockerコンテナ連携部分はしっかりやる。
+
+
+
+VMware ESXiのインストール法（有償かつエラーで起動できなかったので使わず）
+https://qiita.com/Higemal/items/6c9f1d1e7dc5e98073ee
+

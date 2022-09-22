@@ -1,0 +1,26 @@
+version: '3'
+services:
+  ansible_ctl:
+    container_name: ansible_ctl
+    build: docker/ansible
+    tty: true
+    working_dir: "/var/data"
+    volumes:
+      - .:/var/data
+  
+  
+  cent01:
+    container_name: cent01
+    build: docker/target
+    tty: true
+    privileged: true
+  cent02:
+    container_name: cent02
+    build: docker/target
+    tty: true
+    privileged: true
+  cent03:
+    container_name: cent03
+    build: docker/target
+    tty: true
+    privileged: true
